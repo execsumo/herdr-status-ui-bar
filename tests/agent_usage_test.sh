@@ -34,11 +34,11 @@ while [ "$#" -gt 0 ]; do
 done
 [ "${CODEXBAR_MODE:-}" = "fail" ] && exit 1
 if [ "$provider" = "factory" ]; then
-  printf '%s\n' '[{"provider":"factory","source":"api","usage":{"primary":{"usedPercent":12.4,"windowMinutes":300},"secondary":{"usedPercent":30.0,"windowMinutes":10080}}}]'
+  printf '%s\n' '[{"provider":"factory","source":"api","usage":{"primary":{"usedPercent":30.0,"windowMinutes":10080},"secondary":{"usedPercent":12.4,"windowMinutes":300}}}]'
 elif [ "$provider" = "antigravity" ] && [ "${CODEXBAR_MODE:-}" = "offline" ]; then
   printf '%s\n' '[{"provider":"antigravity","source":"offline","usage":{"primary":null,"secondary":null,"extraRateWindows":[{"id":"antigravity-offline-conversations","usageKnown":false,"window":{"usedPercent":0}}]}}]'
 elif [ "$provider" = "antigravity" ]; then
-  printf '%s\n' '[{"provider":"antigravity","source":"cli","usage":{"extraRateWindows":[{"id":"antigravity-quota-summary-gemini-5h","window":{"usedPercent":6.2,"windowMinutes":300}},{"id":"antigravity-quota-summary-gemini-weekly","window":{"usedPercent":37.5,"windowMinutes":10080}}]}}]'
+  printf '%s\n' '[{"provider":"antigravity","source":"cli","usage":{"extraRateWindows":[{"id":"future-provider-window-a","title":"Gemini 5-hour","window":{"usedPercent":6.2,"windowMinutes":300}},{"id":"future-provider-window-b","title":"Gemini weekly","window":{"usedPercent":37.5,"windowMinutes":10080}}]}}]'
 else
   exit 1
 fi

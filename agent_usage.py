@@ -316,13 +316,56 @@ def rate_segment(label: str, five_hour, weekly, stale: bool = False) -> str | No
     return f"{label} {gauge(gauge_value)} {pct(five_hour) or '-'}/{pct(weekly) or '-'}{suffix}"
 
 
+def duration_windows(usage: dict) -> dict:
+    """Return known 5-hour/weekly windows without relying on field order."""
+    windows = {}
+    for key in ("primary", "secondary", "tertiary"):
+        window = usage.get(key)
+        if not isinstance(window, dict):
+            continue
+        value = window_percent(window)
+        minutes = window.get("windowMinutes")
+        if value is not None and minutes in (300, 10080):
+            windows.setdefault(minutes, value)
+    return windows
+
+
+def extra_window_groups(usage: dict) -> dict:
+    """Group extra windows by stable human meaning, not provider-specific IDs."""
+    groups = {}
+    for item in usage.get("extraRateWindows") or []:
+        if not isinstance(item, dict):
+            continue
+        window = item.get("window")
+        value = window_percent(window)
+        minutes = window.get("windowMinutes") if isinstance(window, dict) else None
+        if value is None or minutes not in (300, 10080):
+            continue
+        title = str(item.get("title") or "").lower()
+        item_id = str(item.get("id") or "").lower()
+        if "gemini" in title or "gemini" in item_id:
+            group = "gemini"
+        elif any(marker in title or marker in item_id for marker in ("claude", "gpt", "3p")):
+            group = "third_party"
+        else:
+            group = "other"
+        groups.setdefault(group, {}).setdefault(minutes, value)
+    return groups
+
+
 def factory_segment(entry, stale: bool = False) -> str | None:
     usage = entry.get("usage") if isinstance(entry, dict) else None
     if not isinstance(usage, dict):
         return None
-    primary = window_percent(usage.get("primary"))
-    secondary = window_percent(usage.get("secondary"))
-    return rate_segment("droid", primary, secondary, stale)
+    windows = duration_windows(usage)
+    if not windows:
+        return rate_segment(
+            "droid",
+            window_percent(usage.get("primary")),
+            window_percent(usage.get("secondary")),
+            stale,
+        )
+    return rate_segment("droid", windows.get(300), windows.get(10080), stale)
 
 
 def antigravity_segment(entry, stale: bool = False) -> str | None:
@@ -330,27 +373,17 @@ def antigravity_segment(entry, stale: bool = False) -> str | None:
     if not isinstance(usage, dict) or entry.get("source") == "offline":
         return None
 
-    windows = {}
-    for item in usage.get("extraRateWindows") or []:
-        if not isinstance(item, dict):
-            continue
-        item_id = item.get("id")
-        if isinstance(item_id, str):
-            windows[item_id] = window_percent(item.get("window"))
-
-    five_hour = windows.get("antigravity-quota-summary-gemini-5h")
-    weekly = windows.get("antigravity-quota-summary-gemini-weekly")
-    if five_hour is None and weekly is None:
-        for key in ("primary", "secondary"):
-            window = usage.get(key)
-            if not isinstance(window, dict):
-                continue
-            value = window_percent(window)
-            if window.get("windowMinutes") == 300:
-                five_hour = value
-            elif window.get("windowMinutes") == 10080:
-                weekly = value
-    return rate_segment("antigravity", five_hour, weekly, stale)
+    # Prefer the Gemini quota family when CodexBar exposes named extra windows.
+    # If that metadata changes, fall back to generic duration-based windows.
+    windows = extra_window_groups(usage).get("gemini") or duration_windows(usage)
+    if not windows:
+        return rate_segment(
+            "antigravity",
+            window_percent(usage.get("primary")),
+            window_percent(usage.get("secondary")),
+            stale,
+        )
+    return rate_segment("antigravity", windows.get(300), windows.get(10080), stale)
 
 
 def codexbar_segment(provider: str) -> str | None:
