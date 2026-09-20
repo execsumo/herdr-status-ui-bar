@@ -8,6 +8,7 @@ trap 'rm -rf "$DIR"' EXIT
 fail() { echo "FAIL: $1"; exit 1; }
 mtime() { python3 -c 'import os, sys; print(int(os.stat(sys.argv[1]).st_mtime))' "$1"; }
 fmt_hm() { python3 -c 'import datetime, sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1])).strftime("%H:%M"))' "$1"; }
+fmt_i12() { python3 -c 'import datetime, sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1])).strftime("%I:%M%p").lstrip("0").lower())' "$1"; }
 
 # 픽스처 — 실물과 동일한 필드 구조
 cat > "$DIR/statusline.json" <<'EOF'
@@ -82,4 +83,9 @@ case "$out" in
   *) fail "--color 출력: got '$out'" ;;
 esac
 
-echo "PASS (10/10)"
+# 11) --12h — 12시간제 타임스탬프 (예: 3:04pm, 정오/자정 lstrip 확인은 T0 값에 의존하지 않음)
+TS0_12=$(fmt_i12 "$T0")
+out=$("${base[@]}" GROK_FETCH_CMD="cat '$DIR/billing.json'" "$SCRIPT" --12h)
+[ "$out" = "claude █░░░░░░░░░ 12%/30% │ codex ███░░░░░░░ 32% │ grok █░░░░░░░░░ 5% │ @$TS0_12" ] || fail "--12h 포맷: got '$out'"
+
+echo "PASS (11/11)"
