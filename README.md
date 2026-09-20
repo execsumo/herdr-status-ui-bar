@@ -88,7 +88,9 @@ In the popup: `↑/↓` or `k/j` to move, `Space` to toggle a widget on/off, `K`
 (shift+k / shift+j) to reorder, `R` (shift+r) to turn all three off, `Enter` to
 apply (rewrites `config.toml` and reloads herdr), `Esc`/`q` to cancel without
 changing anything. A live preview line at the bottom runs each enabled widget's
-actual command so you can see the result before committing.
+actual command so you can see the result before committing — a widget whose
+command fails (missing script, nonzero exit, timeout) shows `(widget-id: reason)`
+instead of silently vanishing.
 
 To turn off all three plugin widgets without opening the popup:
 

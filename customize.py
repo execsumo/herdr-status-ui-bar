@@ -51,27 +51,41 @@ def missing_scripts() -> list[str]:
     return [name for name in REQUIRED_SCRIPTS if not (dest_dir() / name).exists()]
 
 
-def fetch_preview_outputs(blocks: list[dict]) -> dict[int, str]:
-    """블록별로 실제 커맨드를 한 번 실행해서 미리보기용 출력을 얻는다."""
-    outputs: dict[int, str] = {}
+def fetch_preview_outputs(blocks: list[dict]) -> dict[int, dict]:
+    """블록별로 실제 커맨드를 한 번 실행해서 미리보기용 출력/상태를 얻는다.
+
+    각 항목은 {"text": str, "error": str | None}. error는 커맨드 실행 자체가 실패했거나
+    (파일 없음 등) 비정상 종료(exit != 0)했을 때만 채운다 — 정상 종료했지만 stdout이
+    그냥 비어있는 경우(예: 사용하지 않는 agent 세그먼트, 네트워크 실패 시 조용히 빈
+    문자열을 내는 weather의 `2>/dev/null`)는 기존과 같이 error 없이 그대로 둔다.
+    """
+    outputs: dict[int, dict] = {}
     for i, block in enumerate(blocks):
         cmd = L.block_command(block)
         try:
             proc = subprocess.run(["/bin/sh", "-c", cmd], capture_output=True, text=True, timeout=PREVIEW_TIMEOUT)
-            outputs[i] = proc.stdout.strip().splitlines()[0] if proc.stdout.strip() else ""
-        except (OSError, subprocess.TimeoutExpired):
-            outputs[i] = ""
+        except subprocess.TimeoutExpired:
+            outputs[i] = {"text": "", "error": f"timed out after {PREVIEW_TIMEOUT}s"}
+            continue
+        except OSError as exc:
+            outputs[i] = {"text": "", "error": str(exc)}
+            continue
+        text = proc.stdout.strip().splitlines()[0] if proc.stdout.strip() else ""
+        error = f"exit {proc.returncode}" if proc.returncode != 0 else None
+        outputs[i] = {"text": text, "error": error}
     return outputs
 
 
-def render_preview_line(blocks: list[dict], outputs: dict[int, str]) -> str:
+def render_preview_line(blocks: list[dict], outputs: dict[int, dict]) -> str:
     parts = []
     for i, block in enumerate(blocks):
         if not block.get("enabled", True):
             continue
-        text = outputs.get(i, "")
-        if text:
-            parts.append(text)
+        info = outputs.get(i) or {"text": "", "error": None}
+        if info.get("error"):
+            parts.append(f"({block['id']}: {info['error']})")
+        elif info.get("text"):
+            parts.append(info["text"])
     return SEPARATOR.join(parts) if parts else "(no plugin widgets enabled)"
 
 
