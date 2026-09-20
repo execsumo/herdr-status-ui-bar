@@ -29,6 +29,9 @@ PREVIEW_TIMEOUT = 3
 PAD_X = 2
 PAD_Y = 1
 
+# install.sh가 복사하는 위젯 스크립트 전부. weather는 스크립트 없이 인라인 curl이라 여기 없다.
+REQUIRED_SCRIPTS = ("agent_usage.py", "tab_id.py")
+
 
 def config_dir() -> Path:
     return Path(os.environ.get("HERDR_CONFIG_DIR") or Path.home() / ".config/herdr")
@@ -36,6 +39,16 @@ def config_dir() -> Path:
 
 def dest_dir() -> Path:
     return config_dir() / "agent-usage"
+
+
+def missing_scripts() -> list[str]:
+    """install.sh가 복사해야 할 스크립트 중 아직 없는 것들.
+
+    agent_usage.py만 확인하면 tab_id.py처럼 나중에 추가된 스크립트가 stale한 설치에
+    빠져 있어도 가드를 통과한다 — 그 위젯을 켜면 존재하지 않는 파일을 가리키는 채로
+    조용히 깨진다(회귀: v0.3.0 이전에 install한 뒤 herdr-tab-id를 켠 경우).
+    """
+    return [name for name in REQUIRED_SCRIPTS if not (dest_dir() / name).exists()]
 
 
 def fetch_preview_outputs(blocks: list[dict]) -> dict[int, str]:
@@ -119,11 +132,12 @@ def main() -> int:
     layout_path = dest_dir() / "layout.toml"
     config_path = config_dir() / "config.toml"
 
-    if not (dest_dir() / "agent_usage.py").exists():
+    missing = missing_scripts()
+    if missing:
         print(
             "customize: run the install action first "
             "(herdr plugin action invoke speardragon.herdr-status-ui-bar.install) — "
-            "the widget scripts aren't installed yet, so enabling anything here "
+            f"missing widget script(s): {', '.join(missing)}. Enabling anything here "
             "would point the tab bar at files that don't exist.",
             file=sys.stderr,
         )
